@@ -1,0 +1,29 @@
+diff --git a/drivers/net/ethernet/stmicro/stmmac/dwmac-sun8i.c b/drivers/net/ethernet/stmicro/stmmac/dwmac-sun8i.c
+index 5d871b2cd..0d794edad 100644
+--- a/drivers/net/ethernet/stmicro/stmmac/dwmac-sun8i.c
++++ b/drivers/net/ethernet/stmicro/stmmac/dwmac-sun8i.c
+@@ -703,9 +703,23 @@ static void sun8i_dwmac_set_filter(struct mac_device_info *hw,
+ 				i++;
+ 			}
+ 		}
++	} else if (netdev_uc_count(dev) + 1 <= hw->unicast_filter_entries) {
++		/*
++		 * The perfect-filter table is shared by unicast and multicast
++		 * addresses. If only the multicast list overflows it, accept all
++		 * multicast frames instead of putting the whole interface into
++		 * promiscuous mode.
++		 */
++		v |= EMAC_FRM_FLT_MULTICAST;
++		if (!netdev_uc_empty(dev)) {
++			netdev_for_each_uc_addr(ha, dev) {
++				sun8i_dwmac_set_umac_addr(hw, ha->addr, i);
++				i++;
++			}
++		}
+ 	} else {
+ 		if (!(readl(ioaddr + EMAC_RX_FRM_FLT) & EMAC_FRM_FLT_RXALL))
+-			netdev_info(dev, "Too many address, switching to promiscuous\n");
++			netdev_info(dev, "Too many unicast addresses, switching to promiscuous\n");
+ 		v = EMAC_FRM_FLT_RXALL;
+ 	}
+ 

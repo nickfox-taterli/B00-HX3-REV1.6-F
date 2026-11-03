@@ -1,0 +1,6 @@
+[Match]
+Path=platform-5020000.ethernet
+
+[Link]
+Name=end0
+MACAddress=02:00:04:48:99:cb

@@ -1,0 +1,10 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/* Board-local U-Boot tree based on the matching Transpeed H618 hardware. */
+
+#include "sun50i-h618-transpeed-8k618-t.dts"
+
+/ {
+	model = "B00-HX3-REV1.6-F";
+	compatible = "b00,hx3-rev1-6-f", "transpeed,8k618-t",
+		     "allwinner,sun50i-h618";
+};

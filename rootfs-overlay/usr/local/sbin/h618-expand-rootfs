@@ -1,0 +1,44 @@
+#!/bin/sh
+set -eu
+
+LOG=/var/log/h618-expand-rootfs.log
+UNIT=h618-expand-rootfs.service
+SCRIPT=/usr/local/sbin/h618-expand-rootfs
+
+exec >>"$LOG" 2>&1
+echo "=== rootfs expansion started: $(date -u +%FT%TZ) ==="
+
+ROOT_SOURCE=$(findmnt -n -o SOURCE /)
+ROOT_DEVICE=$(readlink -f "$ROOT_SOURCE")
+ROOT_FS=$(findmnt -n -o FSTYPE /)
+
+if [ "$ROOT_FS" != ext4 ]; then
+	echo "Refusing to resize unexpected root filesystem: $ROOT_FS ($ROOT_SOURCE)"
+	exit 1
+fi
+
+case "$ROOT_DEVICE" in
+	/dev/mmcblk*p[0-9]*) ;;
+	*) echo "Refusing to resize unexpected root device: $ROOT_DEVICE"; exit 1 ;;
+esac
+
+ROOT_PART=${ROOT_DEVICE##*p}
+DISK=${ROOT_DEVICE%p$ROOT_PART}
+if [ "$ROOT_PART" != 2 ] || [ ! -b "$DISK" ]; then
+	echo "Refusing unexpected root partition layout: disk=$DISK part=$ROOT_PART"
+	exit 1
+fi
+
+echo "Growing $ROOT_DEVICE on $DISK"
+growpart "$DISK" "$ROOT_PART"
+udevadm settle --timeout=20
+resize2fs "$ROOT_DEVICE"
+
+echo "Expanded root filesystem: partition_bytes=$(blockdev --getsize64 "$ROOT_DEVICE") disk_bytes=$(blockdev --getsize64 "$DISK")"
+touch /var/lib/h618-rootfs-expanded
+
+# Remove the one-shot service and its helper after a successful resize.
+systemctl disable "$UNIT" 2>/dev/null || true
+rm -f "/etc/systemd/system/$UNIT" "/etc/systemd/system/multi-user.target.wants/$UNIT" "$SCRIPT"
+systemctl daemon-reload
+echo "One-shot service and script removed: $(date -u +%FT%TZ)"

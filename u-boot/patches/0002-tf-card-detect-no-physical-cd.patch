@@ -1,0 +1,13 @@
+diff --git a/dts/upstream/src/arm64/allwinner/sun50i-h618-transpeed-8k618-t.dts b/dts/upstream/src/arm64/allwinner/sun50i-h618-transpeed-8k618-t.dts
+index f828ca1c..0b28a24a 100644
+--- a/dts/upstream/src/arm64/allwinner/sun50i-h618-transpeed-8k618-t.dts
++++ b/dts/upstream/src/arm64/allwinner/sun50i-h618-transpeed-8k618-t.dts
+@@ -75,7 +75,7 @@
+ 
+ &mmc0 {
+ 	vmmc-supply = <&reg_dldo1>;
+-	cd-gpios = <&pio 8 16 GPIO_ACTIVE_LOW>;	/* PI16 */
++	broken-cd;	/* PI16 卡检测不可靠，改用轮询 */
+ 	disable-wp;
+ 	bus-width = <4>;
+ 	status = "okay";

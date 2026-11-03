@@ -1,0 +1,2 @@
+PARTUUID=__ROOT_PARTUUID__  /      ext4  defaults,noatime,commit=60  0 1
+PARTUUID=__BOOT_PARTUUID__  /boot  vfat  defaults,umask=022          0 2

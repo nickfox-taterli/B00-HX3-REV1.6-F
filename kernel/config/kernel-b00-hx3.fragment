@@ -1,0 +1,57 @@
+# B00-HX3-REV1.6-F (H618) headless additions on top of arm64 defconfig (v6.18)
+# Boot-critical SoC support (defconfig lacks these)
+CONFIG_PINCTRL_SUN50I_H616=y
+CONFIG_PINCTRL_SUN50I_H616_R=y
+CONFIG_SUN50I_H616_CCU=y
+CONFIG_USB_EHCI_HCD_PLATFORM=y
+CONFIG_USB_OHCI_HCD_PLATFORM=y
+CONFIG_USB_STORAGE=y
+CONFIG_USB_UAS=y
+CONFIG_USB_MUSB_HOST=y
+CONFIG_USB_DWC2_HOST=y
+# CONFIG_USB_GADGET is not set
+# Mainline GPU rendering, with no display/HDMI stack
+CONFIG_DRM=y
+CONFIG_DRM_PANFROST=m
+# H616 GPU power domain (required for Panfrost probe)
+CONFIG_SUN50I_H6_PRCM_PPU=y
+# Keep USB OTG usable in host mode when this port is populated
+CONFIG_USB_MUSB_SUNXI=y
+# Ethernet built-in for headless first boot (defconfig: =m)
+CONFIG_STMMAC_ETH=y
+CONFIG_STMMAC_PLATFORM=y
+CONFIG_DWMAC_SUN8I=y
+CONFIG_REALTEK_PHY=y
+# PMIC on R_I2C built-in
+CONFIG_I2C_MV64XXX=y
+CONFIG_MFD_AXP20X_I2C=y
+CONFIG_REGULATOR_AXP20X=y
+# systemd requirements
+CONFIG_SECCOMP_FILTER=y
+CONFIG_UTS_NS=y
+CONFIG_IPC_NS=y
+CONFIG_PID_NS=y
+CONFIG_NET_NS=y
+CONFIG_CGROUP_SCHED=y
+CONFIG_FAIR_GROUP_SCHED=y
+CONFIG_CPUSETS=y
+CONFIG_MEMCG=y
+CONFIG_CGROUP_PIDS=y
+CONFIG_CGROUP_FREEZER=y
+CONFIG_CGROUP_DEVICE=y
+CONFIG_CGROUP_CPUACCT=y
+CONFIG_CGROUP_PERF=y
+CONFIG_CGROUP_BPF=y
+CONFIG_BLK_CGROUP=y
+# misc
+CONFIG_RTC_DRV_SUN6I=y
+CONFIG_AUTOFS_FS=y
+CONFIG_ARM_ALLWINNER_SUN50I_CPUFREQ_NVMEM=m
+CONFIG_SUN8I_THERMAL=m
+# Remove unused board functions from this headless image
+# CONFIG_IR_SUNXI is not set
+# CONFIG_SND is not set
+# CONFIG_DRM_SUN4I is not set
+# CONFIG_VIDEO_HANTRO is not set
+# Early kernel RAM test support; userspace memtester is also installed.
+CONFIG_MEMTEST=y

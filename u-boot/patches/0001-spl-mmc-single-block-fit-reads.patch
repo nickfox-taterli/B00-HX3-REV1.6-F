@@ -1,0 +1,138 @@
+diff --git a/common/spl/spl_fit.c b/common/spl/spl_fit.c
+index 49b4df60..aef8ee98 100644
+--- a/common/spl/spl_fit.c
++++ b/common/spl/spl_fit.c
+@@ -681,7 +681,7 @@ static int spl_simple_fit_read(struct spl_fit_info *ctx,
+ 			       struct spl_load_info *info, ulong offset,
+ 			       const void *fit_header)
+ {
+-	unsigned long count, size;
++	unsigned long size, pos, chunk, count;
+ 	void *buf;
+ 
+ 	/*
+@@ -702,13 +702,29 @@ static int spl_simple_fit_read(struct spl_fit_info *ctx,
+ 	 */
+ 	size = get_aligned_image_size(info, size, 0);
+ 	buf = board_spl_fit_buffer_addr(size, size, 1);
+-
+-	count = info->read(info, offset, size, buf);
++	/*
++	 * The sunxi SPL MMC driver transfers data through the controller FIFO
++	 * using the CPU/FIFO path. Multi-block reads fail on this H618 board even
++	 * though single-block reads work, so issue one block per command here.
++	 * This is slower but avoids relying on the broken SPL CMD18 path.
++	 */
++	for (pos = 0; pos < size; pos += chunk) {
++		chunk = min(size - pos, (ulong)spl_get_bl_len(info));
++		count = info->read(info, offset + pos, chunk,
++				   (char *)buf + pos);
++		if (count != chunk) {
++			printf("SPL FIT chunk read failed: offset=%lu expected=%lu got=%lu\n",
++			       pos, chunk, count);
++			return -EIO;
++		}
++	}
+ 	ctx->fit = buf;
++	printf("SPL FIT read: total=%lu aligned=%lu bytes=%lu\n",
++	       (ulong)fdt_totalsize(fit_header), size, pos);
+ 	debug("fit read offset %lx, size=%lu, dst=%p, count=%lu\n",
+-	      offset, size, buf, count);
++	      offset, size, buf, pos);
+ 
+-	return (count == 0) ? -EIO : 0;
++	return 0;
+ }
+ 
+ static int spl_simple_fit_parse(struct spl_fit_info *ctx)
+@@ -748,8 +764,10 @@ int spl_load_simple_fit(struct spl_image_info *spl_image,
+ 	int firmware_node;
+ 
+ 	ret = spl_simple_fit_read(&ctx, info, offset, fit);
+-	if (ret < 0)
++	if (ret < 0) {
++		printf("SPL FIT read stage failed: %d\n", ret);
+ 		return ret;
++	}
+ 
+ 	/* skip further processing if requested to enable load-only use cases */
+ 	if (spl_load_simple_fit_skip_processing())
+@@ -758,8 +776,10 @@ int spl_load_simple_fit(struct spl_image_info *spl_image,
+ 	ctx.fit = spl_load_simple_fit_fix_load(ctx.fit);
+ 
+ 	ret = spl_simple_fit_parse(&ctx);
+-	if (ret < 0)
++	if (ret < 0) {
++		printf("SPL FIT parse stage failed: %d\n", ret);
+ 		return ret;
++	}
+ 
+ 	if (IS_ENABLED(CONFIG_SPL_FPGA))
+ 		spl_fit_load_fpga(&ctx, info, offset);
+@@ -788,13 +808,16 @@ int spl_load_simple_fit(struct spl_image_info *spl_image,
+ 	if (node < 0) {
+ 		debug("%s: Cannot find u-boot image node: %d\n",
+ 		      __func__, node);
++		printf("SPL FIT firmware/loadables lookup failed: %d\n", node);
+ 		return -1;
+ 	}
+ 
+ 	/* Load the image and set up the spl_image structure */
+ 	ret = load_simple_fit(info, offset, &ctx, node, spl_image);
+-	if (ret)
++	if (ret) {
++		printf("SPL FIT primary image load failed: %d\n", ret);
+ 		return ret;
++	}
+ 
+ 	/*
+ 	 * For backward compatibility, we treat the first node that is
+@@ -811,8 +834,10 @@ int spl_load_simple_fit(struct spl_image_info *spl_image,
+ 	 */
+ 	if (os_takes_devicetree(spl_image->os)) {
+ 		ret = spl_fit_append_fdt(spl_image, info, offset, &ctx);
+-		if (ret < 0 && spl_image->os != IH_OS_U_BOOT)
++		if (ret < 0 && spl_image->os != IH_OS_U_BOOT) {
++			printf("SPL FIT FDT append failed: %d\n", ret);
+ 			return ret;
++		}
+ 	}
+ 
+ 	firmware_node = node;
+@@ -837,6 +862,7 @@ int spl_load_simple_fit(struct spl_image_info *spl_image,
+ 		if (ret < 0 && ret != -EPERM) {
+ 			printf("%s: can't load image loadables index %d (ret = %d)\n",
+ 			       __func__, index, ret);
++			printf("SPL FIT loadable failed: %d\n", ret);
+ 			return ret;
+ 		}
+ 
+diff --git a/common/spl/spl_mmc.c b/common/spl/spl_mmc.c
+index fe423017..ca939217 100644
+--- a/common/spl/spl_mmc.c
++++ b/common/spl/spl_mmc.c
+@@ -23,8 +23,13 @@ static ulong h_spl_load_read(struct spl_load_info *load, ulong off,
+ 	struct blk_desc *bd = load->priv;
+ 	lbaint_t sector = off >> bd->log2blksz;
+ 	lbaint_t count = size >> bd->log2blksz;
++	lbaint_t done;
+ 
+-	return blk_dread(bd, sector, count, buf) << bd->log2blksz;
++	done = blk_dread(bd, sector, count, buf);
++	if (done != count)
++		printf("SPL MMC read failed: dev=%d LBA=%lu blocks=%lu done=%lu\n",
++		       bd->devnum, (ulong)sector, (ulong)count, (ulong)done);
++	return done << bd->log2blksz;
+ }
+ 
+ static __maybe_unused unsigned long spl_mmc_raw_uboot_offset(int part)
+@@ -47,7 +52,9 @@ int mmc_load_image_raw_sector(struct spl_image_info *spl_image,
+ 	struct spl_load_info load;
+ 
+ 	spl_load_init(&load, h_spl_load_read, bd, bd->blksz);
++	printf("SPL MMC raw: dev=%d LBA=%lu\n", bd->devnum, sector);
+ 	ret = spl_load(spl_image, bootdev, &load, 0, sector << bd->log2blksz);
++	printf("SPL MMC raw result: %d\n", ret);
+ 	if (ret) {
+ 		puts("mmc_load_image_raw_sector: mmc block read error\n");
+ 		log_debug("(error=%d)\n", ret);

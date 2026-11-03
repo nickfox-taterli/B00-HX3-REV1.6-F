@@ -1,0 +1,12 @@
+[Unit]
+Description=Expand H618 root filesystem once on first boot
+After=local-fs.target
+Before=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/h618-expand-rootfs
+TimeoutStartSec=5min
+
+[Install]
+WantedBy=multi-user.target
